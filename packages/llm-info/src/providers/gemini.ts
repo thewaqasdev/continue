@@ -15,14 +15,14 @@ export const Gemini: ModelProvider = {
       recommendedFor: ["chat"],
     },
     {
-      model: "gemini-2.5-pro-exp-03-25",
-      displayName: "Gemini 2.5 Pro Experimental",
+      model: "gemini-2.5-pro",
+      displayName: "Gemini 2.5 Pro",
       description:
-        "Experimental release of Gemini 2.5 Pro with 1M token context window",
+        "Google's most capable model with strong reasoning capabilities and 1M token context window",
       contextLength: 1048576,
       maxCompletionTokens: 65536,
       mediaTypes: AllMediaTypes,
-      regex: /gemini-2\.5-pro-exp/i,
+      regex: /gemini-2\.5-pro(?!-exp)/i,
       recommendedFor: ["chat"],
     },
     {

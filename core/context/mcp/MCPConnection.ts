@@ -26,6 +26,7 @@ import {
 } from "../..";
 import { resolveRelativePathInDir } from "../../util/ideUtils";
 import { getEnvPathFromUserShell } from "../../util/shellPath";
+import { resolveCommand } from "../../util/commandUtils";
 import { getOauthToken } from "./MCPOauth";
 
 const DEFAULT_MCP_TIMEOUT = 20_000; // 20 seconds
@@ -396,23 +397,27 @@ class MCPConnection {
    * @param originalArgs The original command arguments
    * @returns An object with the resolved command and arguments
    */
-  private resolveCommandForPlatform(
+  private async resolveCommandForPlatform(
     originalCommand: string,
     originalArgs: string[],
-  ): { command: string; args: string[] } {
-    // If not on Windows or not a batch command, return as-is
+  ): Promise<{ command: string; args: string[] }> {
+    // Try to resolve the command to its full path
+    const resolvedCommand = await resolveCommand(originalCommand);
+
+    // If not on Windows or not a batch command, return resolved command
     if (
       process.platform !== "win32" ||
       !WINDOWS_BATCH_COMMANDS.includes(originalCommand)
     ) {
-      return { command: originalCommand, args: originalArgs };
+      return { command: resolvedCommand, args: originalArgs };
     }
 
     // On Windows, we need to execute batch commands via cmd.exe
     // Format: cmd.exe /c command [args]
+    // Use the resolved path if we found it
     return {
       command: "cmd.exe",
-      args: ["/c", originalCommand, ...originalArgs],
+      args: ["/c", resolvedCommand, ...originalArgs],
     };
   }
 
@@ -530,24 +535,23 @@ class MCPConnection {
       ...(options.env ?? {}),
     };
 
-    if (process.env.PATH !== undefined) {
-      // Set the initial PATH from process.env
-      env.PATH = process.env.PATH;
-
-      // For non-Windows platforms, try to get the PATH from user shell
-      if (process.platform !== "win32") {
-        try {
-          const shellEnvPath = await getEnvPathFromUserShell();
-          if (shellEnvPath && shellEnvPath !== process.env.PATH) {
-            env.PATH = shellEnvPath;
-          }
-        } catch (err) {
-          console.error("Error getting PATH:", err);
-        }
+    // Try to get an enhanced PATH with all possible Node.js locations
+    try {
+      const shellEnvPath = await getEnvPathFromUserShell();
+      if (shellEnvPath) {
+        env.PATH = shellEnvPath;
+      } else if (process.env.PATH !== undefined) {
+        env.PATH = process.env.PATH;
+      }
+    } catch (err) {
+      console.error("Error getting enhanced PATH:", err);
+      // Fallback to process.env.PATH
+      if (process.env.PATH !== undefined) {
+        env.PATH = process.env.PATH;
       }
     }
 
-    const { command, args } = this.resolveCommandForPlatform(
+    const { command, args } = await this.resolveCommandForPlatform(
       options.command,
       options.args || [],
     );
