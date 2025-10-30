@@ -1,0 +1,273 @@
+---
+title: Slack DM Integration
+description: "Enable private @continue mentions in Slack DMs to kick off workflows"
+---
+
+## Overview
+
+The Slack DM integration allows users to privately interact with Continue by mentioning `@continue` in their own direct messages with the Continue bot. This provides a private way to kick off workflows without using public channels.
+
+## Features
+
+- **Private DM Support**: Mention `@continue` in your personal DMs to start workflows
+- **Channel Mentions**: Also works in public channels when you mention the bot
+- **Real-time Updates**: Get progress updates as your workflow runs
+- **Secure**: All requests are verified using Slack's signing secret
+
+## Prerequisites
+
+1. **Continue CLI** installed and configured
+2. **Slack Workspace** where you have admin privileges
+3. **Public URL** for webhook endpoint (can use ngrok for testing)
+
+## Setup Instructions
+
+### 1. Create a Slack App
+
+1. Go to [https://api.slack.com/apps](https://api.slack.com/apps)
+2. Click **Create New App** → **From scratch**
+3. Enter an app name (e.g., "Continue Bot") and select your workspace
+4. Click **Create App**
+
+### 2. Configure Bot Permissions
+
+1. In your Slack app settings, go to **OAuth & Permissions**
+2. Under **Scopes** → **Bot Token Scopes**, add these permissions:
+   - `app_mentions:read` - Read when bot is mentioned
+   - `chat:write` - Send messages
+   - `im:history` - Read DM history
+   - `im:read` - Access DM channels
+   - `im:write` - Send DMs
+
+3. Click **Install to Workspace** and authorize the app
+4. Copy the **Bot User OAuth Token** (starts with `xoxb-`)
+
+### 3. Enable Event Subscriptions
+
+1. Go to **Event Subscriptions** in your Slack app settings
+2. Toggle **Enable Events** to ON
+3. Enter your webhook URL:
+   ```
+   https://your-domain.com/slack/events
+   ```
+   
+   For local testing with ngrok:
+   ```
+   https://your-ngrok-url.ngrok.io/slack/events
+   ```
+
+4. Under **Subscribe to bot events**, add:
+   - `app_mention` - When bot is mentioned in channels
+   - `message.im` - Messages in DMs with the bot
+
+5. Click **Save Changes**
+
+### 4. Get Required Credentials
+
+You'll need three environment variables:
+
+1. **SLACK_SIGNING_SECRET**: Found in **Basic Information** → **App Credentials**
+2. **SLACK_BOT_TOKEN**: The Bot User OAuth Token from step 2
+3. **SLACK_BOT_USER_ID**: Found in **Basic Information** → **App ID** (starts with `U`)
+
+### 5. Configure Continue
+
+Set the environment variables:
+
+```bash
+export SLACK_SIGNING_SECRET="your_signing_secret"
+export SLACK_BOT_TOKEN="xoxb-your-bot-token"
+export SLACK_BOT_USER_ID="U01234567"
+```
+
+Or create a `.env` file:
+
+```bash
+SLACK_SIGNING_SECRET=your_signing_secret
+SLACK_BOT_TOKEN=xoxb-your-bot-token
+SLACK_BOT_USER_ID=U01234567
+```
+
+### 6. Start Continue with Slack Integration
+
+Run the Continue server with Slack integration enabled:
+
+```bash
+cn serve --slack --port 8000
+```
+
+The server will start with the Slack webhook endpoint available at `/slack/events`.
+
+## Usage
+
+### Private DMs
+
+1. Open Slack and start a DM with your Continue bot
+2. Send a message with your request:
+   ```
+   @continue please review the authentication code in auth.ts and suggest improvements
+   ```
+
+3. The bot will:
+   - Acknowledge your request immediately
+   - Process your request using Continue's AI
+   - Update the message with results when complete
+
+### Public Channels
+
+1. Invite the Continue bot to a channel
+2. Mention the bot with your request:
+   ```
+   @continue can you analyze this error log and suggest a fix?
+   ```
+
+3. The bot will respond in the thread with results
+
+## Architecture
+
+```
+Slack DM/Mention 
+    ↓
+Webhook (POST /slack/events)
+    ↓
+Slack Integration Handler
+    ↓
+Continue Serve API (POST /message)
+    ↓
+Continue Agent Processing
+    ↓
+Results posted back to Slack
+```
+
+## Development & Testing
+
+### Using ngrok for Local Testing
+
+1. Start Continue server:
+   ```bash
+   cn serve --slack --port 8000
+   ```
+
+2. In another terminal, start ngrok:
+   ```bash
+   ngrok http 8000
+   ```
+
+3. Copy the ngrok HTTPS URL and update your Slack app's Event Subscription URL
+
+4. Slack will send a verification challenge - the server handles this automatically
+
+### Debugging
+
+Enable debug logging:
+
+```bash
+DEBUG=continue:* cn serve --slack
+```
+
+Check the server logs for:
+- Webhook signature verification
+- Incoming Slack events
+- Continue API interactions
+- Response delivery to Slack
+
+## Security
+
+- **Signature Verification**: All webhook requests are verified using Slack's signing secret
+- **Timestamp Check**: Requests older than 5 minutes are rejected
+- **Token Security**: Bot tokens are never exposed in logs or responses
+- **Private by Default**: DMs are only visible to the sender and bot
+
+## Troubleshooting
+
+### Bot not responding to DMs
+
+1. Check that `message.im` event is subscribed in Slack app settings
+2. Verify `im:history` and `im:read` scopes are added
+3. Reinstall the Slack app to update permissions
+
+### Webhook verification fails
+
+1. Verify `SLACK_SIGNING_SECRET` matches the value in Slack app settings
+2. Check server logs for signature verification errors
+3. Ensure webhook URL is publicly accessible
+
+### Timeouts
+
+1. Increase the timeout if workflows take longer:
+   ```bash
+   cn serve --slack --timeout 600  # 10 minutes
+   ```
+
+2. Consider breaking long workflows into smaller tasks
+
+### Bot responds to its own messages
+
+This is prevented by checking if the message sender is the bot user ID. If you see this:
+1. Verify `SLACK_BOT_USER_ID` is set correctly
+2. Check it matches the bot's user ID in Slack
+
+## Production Deployment
+
+For production use:
+
+1. **Use a stable domain** instead of ngrok
+2. **Set up HTTPS** for webhook endpoint
+3. **Configure rate limiting** to prevent abuse
+4. **Monitor logs** for errors and performance
+5. **Set appropriate timeouts** based on workflow complexity
+6. **Use environment-based config** for secrets
+
+Example production deployment:
+
+```bash
+# In your deployment environment
+export SLACK_SIGNING_SECRET="${SLACK_SIGNING_SECRET}"
+export SLACK_BOT_TOKEN="${SLACK_BOT_TOKEN}"
+export SLACK_BOT_USER_ID="${SLACK_BOT_USER_ID}"
+
+# Start with production settings
+cn serve --slack --port 8000 --timeout 600
+```
+
+## API Reference
+
+### Slack Integration Endpoints
+
+#### POST /slack/events
+
+Handles incoming Slack webhook events.
+
+**Request Headers:**
+- `x-slack-signature`: Request signature for verification
+- `x-slack-request-timestamp`: Request timestamp
+
+**Request Body:** Slack event payload
+
+**Response:**
+- `200 OK`: Event processed successfully
+- `401 Unauthorized`: Invalid signature
+- `400 Bad Request`: Invalid event format
+- `500 Internal Server Error`: Processing error
+
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `SLACK_SIGNING_SECRET` | Yes | Slack app signing secret for webhook verification |
+| `SLACK_BOT_TOKEN` | Yes | OAuth token for bot (xoxb-...) |
+| `SLACK_BOT_USER_ID` | Yes | Bot's user ID (U...) |
+
+## Related Documentation
+
+- [Continue CLI Overview](/cli/overview)
+- [Continue Serve Command](/cli/commands/serve)
+- [Slack API Documentation](https://api.slack.com/start)
+- [Webhook Signature Verification](https://api.slack.com/authentication/verifying-requests-from-slack)
+
+## Support
+
+For issues or questions:
+- [GitHub Issues](https://github.com/continuedev/continue/issues)
+- [Continue Discord](https://discord.gg/continue)
+- [Documentation](/docs)

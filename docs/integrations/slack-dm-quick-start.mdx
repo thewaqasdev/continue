@@ -1,0 +1,79 @@
+---
+title: Slack DM Quick Start
+description: "Get started with Continue in Slack DMs in 5 minutes"
+---
+
+## Quick Setup Guide
+
+Enable private @continue mentions in Slack DMs to kick off workflows.
+
+### 1. Create Slack App
+
+1. Visit [https://api.slack.com/apps](https://api.slack.com/apps)
+2. Click **Create New App** → **From scratch**
+3. Name it "Continue Bot" and select your workspace
+
+### 2. Add Bot Permissions
+
+In **OAuth & Permissions**, add these Bot Token Scopes:
+- `app_mentions:read`
+- `chat:write`
+- `im:history`
+- `im:read`
+- `im:write`
+
+Install to workspace and save the **Bot User OAuth Token**.
+
+### 3. Enable Events
+
+In **Event Subscriptions**:
+1. Toggle ON
+2. Add Request URL: `https://your-url.com/slack/events`
+3. Subscribe to bot events:
+   - `app_mention`
+   - `message.im`
+
+### 4. Set Environment Variables
+
+```bash
+export SLACK_SIGNING_SECRET="your_signing_secret"
+export SLACK_BOT_TOKEN="xoxb-your-token"
+export SLACK_BOT_USER_ID="U01234567"
+```
+
+Find these in your Slack app's **Basic Information** and **OAuth & Permissions**.
+
+### 5. Start Continue
+
+```bash
+cn serve --slack --port 8000
+```
+
+### 6. Test It!
+
+Open Slack, DM your Continue bot:
+```
+@continue review my latest commit
+```
+
+The bot will process your request and reply with results!
+
+## Testing Locally
+
+Use ngrok to expose your local server:
+
+```bash
+# Terminal 1: Start Continue
+cn serve --slack --port 8000
+
+# Terminal 2: Start ngrok
+ngrok http 8000
+```
+
+Use the ngrok HTTPS URL in your Slack app's Event Subscription settings.
+
+## Next Steps
+
+- [Full Documentation](/integrations/slack-dm)
+- [Configure Custom Workflows](/cli/overview)
+- [Deploy to Production](/cli/deployment)

@@ -37,12 +37,15 @@ import {
   streamChatResponseWithInterruption,
   type ServerState,
 } from "./serve.helpers.js";
+import { setupSlackIntegration } from "../integrations/slack/index.js";
 
 interface ServeOptions extends ExtendedCommandOptions {
   timeout?: string;
   port?: string;
   /** Storage identifier for remote sync */
   id?: string;
+  /** Enable Slack integration */
+  slack?: boolean;
 }
 
 // eslint-disable-next-line max-statements
@@ -362,6 +365,36 @@ export async function serve(prompt?: string, options: ServeOptions = {}) {
     setTimeout(handleExitResponse, 100);
   });
 
+  // Setup Slack integration if enabled
+  if (options.slack) {
+    const slackSigningSecret = process.env.SLACK_SIGNING_SECRET;
+    const slackBotToken = process.env.SLACK_BOT_TOKEN;
+    const slackBotUserId = process.env.SLACK_BOT_USER_ID;
+
+    if (!slackSigningSecret || !slackBotToken || !slackBotUserId) {
+      console.log(
+        chalk.yellow(
+          "\nWarning: Slack integration enabled but missing required environment variables:",
+        ),
+      );
+      console.log(
+        chalk.dim("  SLACK_SIGNING_SECRET, SLACK_BOT_TOKEN, SLACK_BOT_USER_ID"),
+      );
+      console.log(chalk.dim("Slack integration will not be available.\n"));
+    } else {
+      setupSlackIntegration(app, {
+        signingSecret: slackSigningSecret,
+        botToken: slackBotToken,
+        botUserId: slackBotUserId,
+        continueApiUrl: `http://localhost:${port}`,
+      });
+      console.log(chalk.green("\nSlack integration enabled"));
+      console.log(
+        chalk.dim(`  Webhook URL: http://localhost:${port}/slack/events`),
+      );
+    }
+  }
+
   const server = app.listen(port, async () => {
     console.log(chalk.green(`Server started on http://localhost:${port}`));
     console.log(chalk.dim("Endpoints:"));
@@ -383,6 +416,9 @@ export async function serve(prompt?: string, options: ServeOptions = {}) {
     console.log(
       chalk.dim("  POST /exit       - Gracefully shut down the server"),
     );
+    if (options.slack) {
+      console.log(chalk.dim("  POST /slack/events - Slack webhook endpoint"));
+    }
     console.log(
       chalk.dim(
         `\nServer will shut down after ${timeoutSeconds} seconds of inactivity`,

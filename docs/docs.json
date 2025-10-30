@@ -142,6 +142,15 @@
             ]
           },
           {
+            "group": "Integrations",
+            "icon": "plug",
+            "expanded": false,
+            "pages": [
+              "integrations/slack-dm-quick-start",
+              "integrations/slack-dm"
+            ]
+          },
+          {
             "group": "Help",
             "icon": "book-open",
             "expanded": false,
